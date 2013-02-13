@@ -141,8 +141,6 @@ public class SecondaryHDLCDataLink
 		Result.ResultCode cd = Result.ResultCode.SrvSucessful;
 
 		// Wait for poll - need an RR with P bit - 1
-		frame = getRRFrame(true);
-		
 		
 		/*Completer cette partie*/
 		
@@ -154,13 +152,12 @@ public class SecondaryHDLCDataLink
 		// Convert the strings into bitstrings
 		for(int ix=0 ; ix < dataArr.length; ix++)
 			dataArr[ix] = BitString.stringToBitString(dataArr[ix]);
-		
 		// Loop to transmit frames
 		/*Completer la boucle*/
-		while()//dernier ack pas encore recu
+		while(  )
 		{
 			// Send frame if window not closed and data not all transmitted
-			if()
+			if(  )
 			{
 				displayDataXchngState("Data Link Layer: prepared and buffered I frame >"+BitString.displayFrame(frame)+"<");
 			}
@@ -188,8 +185,34 @@ public class SecondaryHDLCDataLink
 	// sz - size of the window
 	private int checkNr(int nr, int rhs, int sz)
 	{
-		/*Completer cette methode */
+		int lhs;	// représente le côté gauche de la fenêtre (c'est-à-dire le premier numéro de séquence disponible)
 		
+		if ((rhs - sz) >= 0) {
+			// Si lhs < rhs, alors on vérifie que nr se situe entre ces deux valeurs.
+			lhs = rhs - sz;
+			if ((nr <= rhs) && (nr >= lhs)) {
+				// Si nr est un numéro de séquence valide, on renvoie ce numéro - lhs
+				// (c'est-à-dire le nombre de trames qui ont été acquittées).
+				return nr - lhs;
+			} else {
+				// Si nr n'est pas valide, on retourne simplement 0.
+				return 0;
+			}
+		} else {
+			// Puisque la liste de numéros de séquences est circulaire, alors il se peut que lhs > (HdlcDefs.SNUM_SIZE_COUNT / 2)
+			// et que rhs < [(HdlcDefs.SNUM_SIZE_COUNT / 2) - 1]. On calcule d'abord la valeur de lhs.
+			lhs = rhs + HdlcDefs.SNUM_SIZE_COUNT - sz;
+			if ((nr <= rhs) || (nr >= lhs)) {
+				// Si nr est un numéro de séquence valide, on translate la fenêtre et la valeur de nr,
+				// pour ensuite trouver le nombre de trames acquittées de la même façon que ci-dessus.
+				int newlhs = rhs;
+				int newnr = (nr + sz) % HdlcDefs.SNUM_SIZE_COUNT;
+				return newnr - newlhs;
+			} else {
+				// Si nr n'est pas valide, on retourne simplement 0.
+				return 0;
+			}
+		}
 	}
 	
 	// Helper method to get an RR-frame
@@ -200,42 +223,24 @@ public class SecondaryHDLCDataLink
 	// or frame received is not an RR frame.
 	private String getRRFrame(boolean wait)
 	{
-		String frame;
+		String frame;	// la trame RR retournée (ou null si wait est false et qu'aucune trame RR n'est disponible)
 		
 		do
 		{
-			frame = getFrame(wait);
-			if (frame == null) return frame; //only if wait is null
+			frame = getFrame(wait);		// récupérer la trame
+			if (frame == null) return frame; // arrive seulement si wait est false et qu'aucune trame RR n'est disponible.
 			
+			// Retourner la trame uniquement s'il s'agit d'une trame RR...
 			if ((frame.substring(HdlcDefs.TYPE_START,HdlcDefs.TYPE_END).equals(HdlcDefs.S_FRAME))
 					&& (frame.substring(HdlcDefs.S_START,HdlcDefs.S_END).equals(HdlcDefs.RR_SS)))
 			{
 				return frame;
 			}
-		}while (wait && frame != null);
+			// Répéter tant et aussi longtemps que wait est vrai et qu'une trame qui n'est pas de type RR est disponible
+			// (si wait est true, la méthode retourne aussitôt qu'une trame RR est trouvée).
+		} while (wait && frame != null);
 		
 		return frame;
-		
-//		if (wait) {
-//			
-//			if (frame != null) {
-//				if (!((frame.substring(HdlcDefs.TYPE_START,HdlcDefs.TYPE_END).equals(HdlcDefs.S_FRAME)) && (frame.substring(HdlcDefs.S_START,HdlcDefs.S_END).equals(HdlcDefs.RR_SS)) && ((frame.charAt(HdlcDefs.PF_IX)=='1')))) {
-//					frame = null;
-//					isRR = false;
-//				} else {
-//					isRR = true;
-//				}
-//			}
-//		} else {
-//			if (frame != null) {
-//				if (!((frame.substring(HdlcDefs.TYPE_START,HdlcDefs.TYPE_END).equals(HdlcDefs.S_FRAME)) && (frame.substring(HdlcDefs.S_START,HdlcDefs.S_END).equals(HdlcDefs.RR_SS)) && ((frame.charAt(HdlcDefs.PF_IX)=='1')))) {
-//					frame = null;
-//					isRR = false;
-//				} else {
-//					isRR = true;
-//				}
-//			}
-//		}
 	}
 
 	// For displaying the status of variables used
