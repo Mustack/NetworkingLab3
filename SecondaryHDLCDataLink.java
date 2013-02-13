@@ -141,6 +141,10 @@ public class SecondaryHDLCDataLink
 		Result.ResultCode cd = Result.ResultCode.SrvSucessful;
 
 		// Wait for poll - need an RR with P bit - 1
+
+		frame = getRRFrame(true);
+		if (frame.charAt(HdlcDefs.PF_IX)=='0') return null; //if it's not a poll
+		
 		
 		/*Completer cette partie*/
 		
@@ -152,19 +156,32 @@ public class SecondaryHDLCDataLink
 		// Convert the strings into bitstrings
 		for(int ix=0 ; ix < dataArr.length; ix++)
 			dataArr[ix] = BitString.stringToBitString(dataArr[ix]);
+
+		//initialize values for the loop
+		int i = 0;
+		int nombreDeTramesAcquite;
+		int nr;
+		String sendFrame;
+		
 		// Loop to transmit frames
 		/*Completer la boucle*/
-		while(  )
+		while(i < dataArr.length)//toujours des trames a envoyer
 		{
 			// Send frame if window not closed and data not all transmitted
-			if(  )
+			if(vs != rhsWindow)
 			{
-				displayDataXchngState("Data Link Layer: prepared and buffered I frame >"+BitString.displayFrame(frame)+"<");
+				//envoye trame
+				sendFrame = dataArr[i++];
+				vs = (vs + 1) % HdlcDefs.MAX_DATA_SIZE_BYTES;
+				frameBuffer.add(sendFrame);
+				displayDataXchngState("Data Link Layer: prepared and buffered I frame >"+BitString.displayFrame(sendFrame)+"<");
 			}
 			// Check for RR
 			frame = getRRFrame(false); // just poll
-			if(frame != null) // have a frame
+			if ((frame != null) && (frame.charAt(HdlcDefs.PF_IX)=='0')) // have an ACK frame
 			{
+				nr = Integer.parseInt(frame.substring(HdlcDefs.NR_START, HdlcDefs.NR_END));
+				nombreDeTramesAcquite = checkNr(nr, rhsWindow, windowSize);
 				displayDataXchngState("received an RR frame (ack) >"+BitString.displayFrame(frame)+"<");
 			}	
 		}
