@@ -165,23 +165,32 @@ public class SecondaryHDLCDataLink
 		
 		// Loop to transmit frames
 		/*Completer la boucle*/
-		while(i < dataArr.length)//toujours des trames a envoyer
+		while(i < dataArr.length || frameBuffer.size() > 0)//toujours des trames a envoyer
 		{
 			// Send frame if window not closed and data not all transmitted
-			if(vs != rhsWindow)
+			if(vs != rhsWindow && i < dataArr.length)
 			{
 				//envoye trame
-				sendFrame = dataArr[i++];
-				vs = (vs + 1) % HdlcDefs.MAX_DATA_SIZE_BYTES;
+				sendFrame = dataArr[i];
+				vs = (vs + 1) % HdlcDefs.SNUM_SIZE_COUNT;
 				frameBuffer.add(sendFrame);
+				
+				sendIFrame(sendFrame, i%HdlcDefs.SNUM_SIZE_COUNT, i==dataArr.length-1);
+				
+				i++;
+				
 				displayDataXchngState("Data Link Layer: prepared and buffered I frame >"+BitString.displayFrame(sendFrame)+"<");
 			}
 			// Check for RR
 			frame = getRRFrame(false); // just poll
 			if ((frame != null) && (frame.charAt(HdlcDefs.PF_IX)=='0')) // have an ACK frame
 			{
-				nr = Integer.parseInt(frame.substring(HdlcDefs.NR_START, HdlcDefs.NR_END));
+				nr = BitString.bitStringToInt(frame.substring(HdlcDefs.NR_START, HdlcDefs.NR_END));	
 				nombreDeTramesAcquite = checkNr(nr, rhsWindow, windowSize);
+				
+				rhsWindow = (rhsWindow + nombreDeTramesAcquite) % HdlcDefs.SNUM_SIZE_COUNT;
+				for (int j=0; j<nombreDeTramesAcquite; j++) frameBuffer.remove(0);
+				
 				displayDataXchngState("received an RR frame (ack) >"+BitString.displayFrame(frame)+"<");
 			}	
 		}
@@ -230,6 +239,23 @@ public class SecondaryHDLCDataLink
 				return 0;
 			}
 		}
+	}
+	
+	private void sendIFrame(String info, int numTrame, boolean isFinal)
+	{
+		String finalBit = "0";
+		
+		if (isFinal) 
+			{
+			finalBit = "1";
+			}
+		
+		String addresse = BitString.intToBitString(stationAdr, HdlcDefs.ADR_SIZE_BITS);
+		String controle = HdlcDefs.I_FRAME + BitString.intToBitString(numTrame, 3) + finalBit + BitString.intToBitString(vr, 3); 
+		
+		String frame = HdlcDefs.FLAG + addresse + controle + info + HdlcDefs.FLAG;
+		
+		physicalLayer.transmit(frame);
 	}
 	
 	// Helper method to get an RR-frame
