@@ -143,11 +143,8 @@ public class SecondaryHDLCDataLink
 		// Wait for poll - need an RR with P bit - 1
 
 		frame = getRRFrame(true);
-		if (frame.charAt(HdlcDefs.PF_IX)=='0') return null; //if it's not a poll
-		
-		
-		/*Completer cette partie*/
-		
+		if (frame.charAt(HdlcDefs.PF_IX) == '0') return null; //if it's not a poll
+			
 		// Send the SDU
 		// After each transmission, check for an ACK (RR)
 		// Use a sliding window
@@ -157,43 +154,53 @@ public class SecondaryHDLCDataLink
 		for(int ix=0 ; ix < dataArr.length; ix++)
 			dataArr[ix] = BitString.stringToBitString(dataArr[ix]);
 
-		//initialize values for the loop
+		// Définition/initialisation des variables utilisées dans la boucle.
 		int i = 0;
-		int nombreDeTramesAcquite;
+		int numFramesAck;
 		int nr;
-		String sendFrame;
+		String frameToSend;
 		
 		// Loop to transmit frames
-		/*Completer la boucle*/
-		while(i < dataArr.length || frameBuffer.size() > 0)//toujours des trames a envoyer
+		// Exécuter la boucle tant et aussi longtemps qu'il reste des trames à envoyer
+		// ou des trames à être acquittées.
+		while(i < dataArr.length || frameBuffer.size() > 0)
 		{
 			// Send frame if window not closed and data not all transmitted
 			if(vs != rhsWindow && i < dataArr.length)
 			{
-				//envoye trame
-				sendFrame = dataArr[i];
+				// Incrémenter vs et ajouter la nouvelle trame à frameBuffer.
+				frameToSend = dataArr[i];
 				vs = (vs + 1) % HdlcDefs.SNUM_SIZE_COUNT;
-				frameBuffer.add(sendFrame);
+				frameBuffer.add(frameToSend);
 				
-				sendIFrame(sendFrame, i%HdlcDefs.SNUM_SIZE_COUNT, i==dataArr.length-1);
+				// Construire la trame-I et l'envoyer...
+				sendIFrame(frameToSend, i % HdlcDefs.SNUM_SIZE_COUNT, i == dataArr.length - 1);
 				
 				i++;
 				
-				displayDataXchngState("Data Link Layer: prepared and buffered I frame >"+BitString.displayFrame(sendFrame)+"<");
+				displayDataXchngState("Data Link Layer: prepared and buffered I frame >" + BitString.displayFrame(frameToSend) + "<");
 			}
+			
 			// Check for RR
 			frame = getRRFrame(false); // just poll
-			if ((frame != null) && (frame.charAt(HdlcDefs.PF_IX)=='0')) // have an ACK frame
+			
+			if ((frame != null) && (frame.charAt(HdlcDefs.PF_IX) == '0')) // have an ACK frame
 			{
+				// Conversion du champ nr de la trame en un nombre décimal.
 				nr = BitString.bitStringToInt(frame.substring(HdlcDefs.NR_START, HdlcDefs.NR_END));	
-				nombreDeTramesAcquite = checkNr(nr, rhsWindow, windowSize);
+				// Calcul du nombre de trames acquittées.
+				numFramesAck = checkNr(nr, rhsWindow, windowSize);
 				
-				rhsWindow = (rhsWindow + nombreDeTramesAcquite) % HdlcDefs.SNUM_SIZE_COUNT;
-				for (int j=0; j<nombreDeTramesAcquite; j++) frameBuffer.remove(0);
+				// Calcul de la nouvelle valeur de rhsWindow.
+				rhsWindow = (rhsWindow + numFramesAck) % HdlcDefs.SNUM_SIZE_COUNT;
 				
-				displayDataXchngState("received an RR frame (ack) >"+BitString.displayFrame(frame)+"<");
+				// Retrait des trames acquittées de frameBuffer.
+				for (int j = 0; j < numFramesAck; j++) frameBuffer.remove(0);
+				
+				displayDataXchngState("received an RR frame (ack) >" + BitString.displayFrame(frame) + "<");
 			}	
 		}
+		
 		return(new Result(cd, 0, null));		
 	}
 
@@ -241,20 +248,32 @@ public class SecondaryHDLCDataLink
 		}
 	}
 	
-	private void sendIFrame(String info, int numTrame, boolean isFinal)
+	// Construit la trame-I à partir des champs Information,
+	// N(S) et Final, et envoie cette trame via la couche physique
+	// (i.e., à l'aide de l'attribut physicalLayer).
+	// Paramètres
+	// info - les bits représentant l'information de la trame
+	//        (maximum 32 octets)
+	// frameNumber - le champ N(S) de la trame-I (c'est-à-dire
+	//               le numéro de la trame courante)
+	// isFinal - drapeau qui détermine s'il s'agit de la
+	//           dernière trame à envoyer
+	private void sendIFrame(String info, int frameNumber, boolean isFinal)
 	{
 		String finalBit = "0";
 		
-		if (isFinal) 
-			{
+		if (isFinal) {
 			finalBit = "1";
-			}
+		}
 		
-		String addresse = BitString.intToBitString(stationAdr, HdlcDefs.ADR_SIZE_BITS);
-		String controle = HdlcDefs.I_FRAME + BitString.intToBitString(numTrame, 3) + finalBit + BitString.intToBitString(vr, 3); 
+		// Construction des champs Adresse et Contrôle de la trame.
+		String address = BitString.intToBitString(stationAdr, HdlcDefs.ADR_SIZE_BITS);
+		String control = HdlcDefs.I_FRAME + BitString.intToBitString(frameNumber, 3) + finalBit + BitString.intToBitString(vr, 3); 
 		
-		String frame = HdlcDefs.FLAG + addresse + controle + info + HdlcDefs.FLAG;
+		// Construction de la trame-I.
+		String frame = HdlcDefs.FLAG + address + control + info + HdlcDefs.FLAG;
 		
+		// Envoi de la trame-I nouvellement construite.
 		physicalLayer.transmit(frame);
 	}
 	
@@ -273,7 +292,7 @@ public class SecondaryHDLCDataLink
 			frame = getFrame(wait);		// récupérer la trame
 			if (frame == null) return frame; // arrive seulement si wait est false et qu'aucune trame RR n'est disponible.
 			
-			// Retourner la trame uniquement s'il s'agit d'une trame RR...
+			// Retourner la trame uniquement s'il s'agit d'une trame RR.
 			if ((frame.substring(HdlcDefs.TYPE_START,HdlcDefs.TYPE_END).equals(HdlcDefs.S_FRAME))
 					&& (frame.substring(HdlcDefs.S_START,HdlcDefs.S_END).equals(HdlcDefs.RR_SS)))
 			{
